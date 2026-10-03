@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Event-Sourced Firebase Tic-Tac-Toe with AI Minimax & Realtime Multiplayer">
+    <title>ChronoTacToe | Event-Sourced Tic-Tac-Toe with Time Travel</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-background">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- HEADER / NAVIGATION -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-gamepad"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>Chrono<span class="highlight">TacToe</span></h1>
+                    <span class="badge-es"><i class="fa-solid fa-code-branch"></i> Event Sourced</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button id="config-btn" class="btn btn-secondary btn-sm" title="Firebase Settings">
+                    <i class="fa-solid fa-gear"></i> <span class="hide-mobile">Firebase Config</span>
+                </button>
+                <button id="sound-btn" class="btn btn-icon btn-secondary" title="Toggle Audio">
+                    <i class="fa-solid fa-volume-high" id="sound-icon"></i>
+                </button>
+
+                <!-- Auth Widget -->
+                <div id="auth-widget" class="auth-widget">
+                    <button id="google-signin-btn" class="btn btn-google">
+                        <i class="fa-brands fa-google"></i> Sign in with Google
+                    </button>
+                    <div id="user-profile" class="user-profile hidden">
+                        <img id="user-avatar" src="" alt="User Avatar" class="user-avatar">
+                        <span id="user-name" class="user-name">User</span>
+                        <button id="signout-btn" class="btn btn-icon btn-ghost" title="Sign Out">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="main-content">
+            <!-- LOBBY / GAME CREATION SECTION -->
+            <section id="lobby-section" class="card glass-card lobby-card">
+                <div class="lobby-header">
+                    <h2>Choose Your Battleground</h2>
+                    <p>Play against an unbeatable Minimax AI or challenge a friend in real-time!</p>
+                </div>
+
+                <div class="mode-grid">
+                    <!-- Mode 1: AI Battle -->
+                    <div class="mode-card" id="mode-ai-card">
+                        <div class="mode-icon ai-icon">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <h3>Play vs AI</h3>
+                        <p>Challenge deterministic Minimax algorithms. Zero LLM calls used!</p>
+                        
+                        <div class="difficulty-select">
+                            <label for="ai-difficulty">Difficulty:</label>
+                            <select id="ai-difficulty" class="custom-select">
+                                <option value="unbeatable" selected>Impossible (Minimax)</option>
+                                <option value="medium">Tactical (Medium)</option>
+                                <option value="easy">Casual (Easy)</option>
+                            </select>
+                        </div>
+
+                        <div class="symbol-select">
+                            <label>Play As:</label>
+                            <div class="symbol-toggle">
+                                <button class="symbol-btn active" data-symbol="X">X (First)</button>
+                                <button class="symbol-btn" data-symbol="O">O (Second)</button>
+                            </div>
+                        </div>
+
+                        <button id="start-ai-btn" class="btn btn-primary btn-block">
+                            <i class="fa-solid fa-play"></i> Start AI Game
+                        </button>
+                    </div>
+
+                    <!-- Mode 2: Realtime Multiplayer -->
+                    <div class="mode-card" id="mode-multiplayer-card">
+                        <div class="mode-icon mp-icon">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <h3>Online Multiplayer</h3>
+                        <p>Create a game room, share the code or link, and sync moves via Firestore!</p>
+
+                        <div class="mp-actions">
+                            <button id="create-room-btn" class="btn btn-accent btn-block">
+                                <i class="fa-solid fa-plus"></i> Create Match Room
+                            </button>
+
+                            <div class="divider"><span>OR JOIN GAME</span></div>
+
+                            <div class="join-box">
+                                <input type="text" id="room-code-input" placeholder="Enter 6-digit code..." maxlength="6">
+                                <button id="join-room-btn" class="btn btn-secondary">
+                                    Join <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- GAMEPLAY SECTION (Hidden by default) -->
+            <section id="game-section" class="game-section hidden">
+                <div class="game-layout">
+                    <!-- LEFT / MAIN BOARD COLUMN -->
+                    <div class="board-column">
+                        <!-- Game Info Bar -->
+                        <div class="game-info-bar card glass-card">
+                            <div class="match-meta">
+                                <span class="meta-tag" id="game-mode-badge"><i class="fa-solid fa-robot"></i> VS AI</span>
+                                <span class="meta-tag code-tag hidden" id="game-code-badge">
+                                    Code: <strong id="current-room-code">------</strong>
+                                    <button id="copy-code-btn" class="btn-link" title="Copy Code"><i class="fa-solid fa-copy"></i></button>
+                                </span>
+                            </div>
+
+                            <!-- Players Header -->
+                            <div class="players-score-strip">
+                                <div class="player-card player-x" id="player-card-x">
+                                    <div class="player-avatar-wrapper">
+                                        <div class="symbol-mark x-mark">X</div>
+                                    </div>
+                                    <div class="player-details">
+                                        <span class="player-name" id="name-x">Player X</span>
+                                        <span class="player-role" id="role-x">You</span>
+                                    </div>
+                                    <div class="turn-indicator" id="turn-ind-x">TURN</div>
+                                </div>
+
+                                <div class="vs-divider">VS</div>
+
+                                <div class="player-card player-o" id="player-card-o">
+                                    <div class="turn-indicator" id="turn-ind-o">TURN</div>
+                                    <div class="player-details align-right">
+                                        <span class="player-name" id="name-o">Minimax AI</span>
+                                        <span class="player-role" id="role-o">Opponent</span>
+                                    </div>
+                                    <div class="player-avatar-wrapper">
+                                        <div class="symbol-mark o-mark">O</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status & Turn Banner -->
+                        <div id="game-status-banner" class="status-banner">
+                            <span id="status-text">Your turn! Click a cell to make a move.</span>
+                        </div>
+
+                        <!-- Preview Mode Banner (Time Travel) -->
+                        <div id="preview-mode-banner" class="preview-banner hidden">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span>Viewing Turn #<strong id="preview-step-num">0</strong> (Time Travel Preview)</span>
+                            <button id="restore-turn-btn" class="btn btn-warning btn-sm">
+                                <i class="fa-solid fa-rotate-left"></i> Restore/Rollback To This Turn
+                            </button>
+                            <button id="exit-preview-btn" class="btn btn-ghost btn-sm">
+                                Resume Live <i class="fa-solid fa-forward"></i>
+                            </button>
+                        </div>
+
+                        <!-- TIC TAC TOE GRID -->
+                        <div class="board-wrapper">
+                            <div class="board-grid" id="board-grid">
+                                <button class="cell" data-index="0" aria-label="Cell 0"></button>
+                                <button class="cell" data-index="1" aria-label="Cell 1"></button>
+                                <button class="cell" data-index="2" aria-label="Cell 2"></button>
+                                <button class="cell" data-index="3" aria-label="Cell 3"></button>
+                                <button class="cell" data-index="4" aria-label="Cell 4"></button>
+                                <button class="cell" data-index="5" aria-label="Cell 5"></button>
+                                <button class="cell" data-index="6" aria-label="Cell 6"></button>
+                                <button class="cell" data-index="7" aria-label="Cell 7"></button>
+                                <button class="cell" data-index="8" aria-label="Cell 8"></button>
+                            </div>
+                            <svg class="winning-line-svg" id="winning-line-svg" viewBox="0 0 300 300">
+                                <line id="winning-line" x1="0" y1="0" x2="0" y2="0" stroke="currentColor" stroke-width="8" stroke-linecap="round" />
+                            </svg>
+                        </div>
+
+                        <!-- Game Control Buttons -->
+                        <div class="game-controls">
+                            <button id="leave-game-btn" class="btn btn-secondary">
+                                <i class="fa-solid fa-arrow-left"></i> Exit Match
+                            </button>
+                            <button id="restart-game-btn" class="btn btn-primary">
+                                <i class="fa-solid fa-rotate"></i> New Game
+                            </button>
+                            <button id="share-link-btn" class="btn btn-accent hidden">
+                                <i class="fa-solid fa-share-nodes"></i> Share Match Link
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: EVENT SOURCING & TIME TRAVEL SIDEBAR -->
+                    <div class="sidebar-column">
+                        <!-- TIME TRAVEL TIMELINE CARD -->
+                        <div class="card glass-card timeline-card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-clock-rotate-left"></i> Time Travel</h3>
+                                <span class="step-count-badge" id="total-events-count">0 Events</span>
+                            </div>
+                            <p class="card-subtitle">Scrub through turns or jump to any previous state.</p>
+
+                            <!-- Scrubber Control -->
+                            <div class="scrubber-container">
+                                <div class="scrubber-buttons">
+                                    <button id="btn-first-step" class="btn btn-icon btn-secondary btn-sm" title="First Move">
+                                        <i class="fa-solid fa-backward-step"></i>
+                                    </button>
+                                    <button id="btn-prev-step" class="btn btn-icon btn-secondary btn-sm" title="Previous Move">
+                                        <i class="fa-solid fa-caret-left"></i>
+                                    </button>
+                                    <span class="scrubber-label" id="scrubber-text">Turn 0 / 0</span>
+                                    <button id="btn-next-step" class="btn btn-icon btn-secondary btn-sm" title="Next Move">
+                                        <i class="fa-solid fa-caret-right"></i>
+                                    </button>
+                                    <button id="btn-latest-step" class="btn btn-icon btn-secondary btn-sm" title="Latest Live Turn">
+                                        <i class="fa-solid fa-forward-step"></i>
+                                    </button>
+                                </div>
+                                <input type="range" id="timeline-slider" min="0" max="0" value="0" step="1" class="timeline-range">
+                            </div>
+                        </div>
+
+                        <!-- EVENT LOG AUDIT TRAIL CARD -->
+                        <div class="card glass-card event-log-card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-database"></i> Firestore Event Stream</h3>
+                                <span class="pulse-dot" title="Realtime Firestore Listener Active"></span>
+                            </div>
+                            <p class="card-subtitle">Subcollection <code>games/{id}/events</code> audit stream:</p>
+
+                            <div class="event-stream-container" id="event-stream-list">
+                                <div class="empty-stream">No moves recorded yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="app-footer">
+            <p>Built with <i class="fa-solid fa-heart text-danger"></i> using <strong>Firebase Auth, Firestore & Event Sourcing</strong> | Zero Gemini/LLM API calls used for AI!</p>
+        </footer>
+    </div>
+
+    <!-- SHARE LINK MODAL -->
+    <div id="share-modal" class="modal-backdrop hidden">
+        <div class="modal-card card glass-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-users"></i> Invite Friend to Match</h3>
+                <button class="modal-close" data-close="share-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Send this short game code or direct share link to your friend:</p>
+                
+                <div class="code-display-box">
+                    <span class="code-label">GAME CODE:</span>
+                    <span class="big-code" id="modal-game-code">XXXXXX</span>
+                    <button id="modal-copy-code-btn" class="btn btn-secondary btn-sm">
+                        <i class="fa-solid fa-copy"></i> Copy Code
+                    </button>
+                </div>
+
+                <div class="link-display-box">
+                    <input type="text" id="modal-share-link" readonly value="https://...">
+                    <button id="modal-copy-link-btn" class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-link"></i> Copy Link
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE CONFIG MODAL -->
+    <div id="config-modal" class="modal-backdrop hidden">
+        <div class="modal-card card glass-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-fire"></i> Firebase Settings</h3>
+                <button class="modal-close" data-close="config-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">Configure your Firebase Credentials or use the built-in Firebase store / Local fallback for seamless testing.</p>
+                
+                <div class="form-group">
+                    <label for="fb-config-json">Firebase Config JSON:</label>
+                    <textarea id="fb-config-json" rows="8" placeholder='{
+  "apiKey": "YOUR_API_KEY",
+  "authDomain": "YOUR_PROJECT.firebaseapp.com",
+  "projectId": "YOUR_PROJECT_ID",
+  "storageBucket": "YOUR_PROJECT.appspot.com",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button id="reset-fb-config-btn" class="btn btn-ghost">Reset Default</button>
+                    <button id="save-fb-config-btn" class="btn btn-primary">Save & Reinitialize</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="toast hidden">
+        <i id="toast-icon" class="fa-solid fa-circle-check"></i>
+        <span id="toast-msg">Notification</span>
+    </div>
+
+    <!-- Firebase SDK v10 via ESM CDN -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
